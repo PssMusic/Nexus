@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="es" class="dark">
 <head>
     <meta charset="UTF-8">
@@ -259,6 +259,11 @@
                 <div>
                     <label class="block text-sm font-medium mb-1 text-slate-600 dark:text-slate-300">Título</label>
                     <input type="text" id="link-title" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-brand-500/50" placeholder="Nombre descriptivo">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-slate-600 dark:text-slate-300">Descripción</label>
+                    <textarea id="link-desc" rows="2" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-4 outline-none focus:ring-2 focus:ring-brand-500/50 resize-none text-sm text-slate-700 dark:text-slate-200" placeholder="Descripción del sitio (opcional)..."></textarea>
                 </div>
 
                 <div class="flex gap-4">
@@ -794,12 +799,47 @@
             if (!titleInput.value) {
                 titleInput.value = formatTitleFallback(domain);
             }
+            
+            // Iniciar extracción automática de metadatos (Título y Descripción real)
+            fetchSiteMetadata(finalUrl);
+        }
+
+        async function fetchSiteMetadata(url) {
+            try {
+                const descInput = document.getElementById('link-desc');
+                const titleInput = document.getElementById('link-title');
+                if(!descInput.value) descInput.placeholder = "Buscando descripción automática...";
+                
+                // Usamos allorigins como proxy CORS público gratuito para obtener el HTML de la web sin servidor propio
+                const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
+                
+                if (data.contents) {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(data.contents, "text/html");
+                    
+                    const titleTag = doc.querySelector('title');
+                    if (titleTag && titleTag.innerText && (!titleInput.value || titleInput.value === formatTitleFallback(getDomain(url)))) {
+                        titleInput.value = titleTag.innerText.trim();
+                    }
+
+                    const metaDesc = doc.querySelector('meta[name="description"]') || doc.querySelector('meta[property="og:description"]');
+                    if (metaDesc && metaDesc.content && !descInput.value) {
+                        descInput.value = metaDesc.content.trim();
+                    }
+                }
+                descInput.placeholder = "Descripción del sitio (opcional)...";
+            } catch (e) {
+                console.log("No se pudo extraer la metadata automáticamente.");
+                document.getElementById('link-desc').placeholder = "Descripción del sitio (opcional)...";
+            }
         }
 
         function resetLinkModal() {
             document.getElementById('link-id').value = '';
             document.getElementById('link-url').value = '';
             document.getElementById('link-title').value = '';
+            document.getElementById('link-desc').value = '';
             document.getElementById('link-fav').checked = false;
             updateFavToggleUI();
             
@@ -836,6 +876,7 @@
             const id = document.getElementById('link-id').value;
             let url = document.getElementById('link-url').value.trim();
             const title = document.getElementById('link-title').value.trim();
+            const description = document.getElementById('link-desc').value.trim();
             const categoryId = document.getElementById('link-category').value;
             const isFav = document.getElementById('link-fav').checked;
 
@@ -850,6 +891,7 @@
                 id: id || generateId(),
                 url,
                 title: finalTitle,
+                description,
                 domain,
                 favicon,
                 categoryId,
@@ -883,6 +925,7 @@
             document.getElementById('link-id').value = link.id;
             document.getElementById('link-url').value = link.url;
             document.getElementById('link-title').value = link.title;
+            document.getElementById('link-desc').value = link.description || '';
             document.getElementById('link-category').value = link.categoryId;
             document.getElementById('link-fav').checked = link.favorite;
             updateFavToggleUI();
@@ -960,7 +1003,7 @@
                 el.className = `animate-slide-up bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group relative overflow-hidden`;
 
                 if (state.settings.viewMode === 'cards') {
-                    el.className += ' flex flex-col h-44';
+                    el.className += ' flex flex-col min-h-[12rem] h-auto';
                     el.innerHTML = `
                         <div class="h-1 w-full" style="background-color: ${catColor}"></div>
                         <div class="p-5 flex-1 flex flex-col relative z-10 cursor-pointer" onclick="window.open('${link.url}', '_blank')">
@@ -971,7 +1014,8 @@
                                 </button>
                             </div>
                             <h3 class="font-bold text-lg truncate mb-1 text-slate-800 dark:text-white">${link.title}</h3>
-                            <p class="text-sm text-slate-500 dark:text-slate-400 truncate">${link.domain}</p>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 truncate ${link.description ? 'mb-2' : ''}">${link.domain}</p>
+                            ${link.description ? `<p class="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mt-auto leading-relaxed">${link.description}</p>` : ''}
                         </div>
                         
                         <!-- Hover Actions -->
@@ -989,7 +1033,7 @@
                         <img src="${link.favicon}" alt="" class="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-900 object-contain p-0.5">
                         <div class="flex-1 min-w-0">
                             <h3 class="font-semibold text-sm truncate text-slate-800 dark:text-white">${link.title}</h3>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${link.domain}</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${link.domain}${link.description ? ' <span class="opacity-60 px-1">•</span> <span class="text-slate-400 dark:text-slate-500 italic">' + link.description + '</span>' : ''}</p>
                         </div>
                         <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onclick="toggleFavorite('${link.id}', event)" class="p-1.5 text-lg rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
